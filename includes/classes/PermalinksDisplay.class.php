@@ -1085,7 +1085,8 @@ class PermalinksDisplay
 	private function appendRootAll()
 	{
 		if (preg_match("/(href|src)='((?!(htt|ft)p(s)?:\/\/)[^\']*)'/si", $this->output)) {
-			$this->output = preg_replace("/(href|src)='((?!(htt|ft)p(s)?:\/\/)[^\']*)'/si", "$1='".ROOT."$2'", $this->output);
+			$basedir = str_replace(array(".", "/"), array("\.", "\/"), BASEDIR);
+			$this->output = preg_replace("/(href|src)='(".$basedir.")*([^\']*)'/si", "$1='".ROOT."$3'", $this->output);
 		}
 	}
 
