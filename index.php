@@ -17,6 +17,11 @@
 +--------------------------------------------------------*/
 require_once dirname(__FILE__)."/maincore.php";
 
+if (isset($_GET['logout']) && $_GET['logout'] == "yes") {
+	$userdata = Authenticate::logOut();
+	redirect($settings['opening_page']);
+}
+
 redirect($settings['opening_page']);
 
 mysql_close($db_connect);
