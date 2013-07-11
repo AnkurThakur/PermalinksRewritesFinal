@@ -688,13 +688,7 @@ class PermalinksDisplay
 	*/
 	private function validateURI()
 	{
-		global $settings;
 		$current_uri = PERMALINK_CURRENT_PATH;
-
-		// Removes the Slash and Get the Last part of URL only
-		//$current_uri = strtolower(substr(strrchr($_SERVER['REQUEST_URI'], "/"), 1));
-		//$current_uri = cleanURL($current_uri);
-
 		$uri_match_found = false;
 
 		// Checking for Alias and its Patterns
@@ -702,10 +696,11 @@ class PermalinksDisplay
 
 			if (!$uri_match_found) {
 
+				$alias_php_url = $this->getAliasURL($alias['alias_url'], $alias['alias_php_url'], $alias['alias_type']);
 				// Checking for Alias first
-				if (strcmp($current_uri, $alias['alias_php_url']) == 0) {
+				if (strcmp($current_uri, $alias_php_url[1]) == 0) {
 					$uri_match_found = true;
-					$this->mpRedirect($alias['alias_url']);
+					$this->mpRedirect($alias_php_url[0]);
 				}
 
 				// Checking for Alias Pattern
@@ -798,6 +793,37 @@ class PermalinksDisplay
 				}
 			}
 		}
+	}
+
+	/*
+	* Get Alias URL
+	*
+	* This function will return an Array of 2 elements for a specific Alias:
+	* 1. The Permalink URL of Alias
+	* 2. PHP URL of the Alias
+	*
+	* @param string $url The Permalink URL (incomplete)
+	* @param string $php_url The PHP URL (incomplete)
+	* @param string $type Type of Alias
+	* @access private
+	*/
+	private function getAliasURL($url, $php_url, $type)
+	{
+		$return_url = array();	// 1 => $search, 2 => $replace
+
+		if (is_array($this->alias_pattern[$type])) {
+			$match_found = false;
+				foreach ($this->alias_pattern[$type] as $search=>$replace) {
+					$search = str_replace("%alias%", $url, $search);
+					$replace = str_replace("%alias_target%", $php_url, $replace);
+					if ($replace == PERMALINK_CURRENT_PATH) {
+						$return_url[] = $search;
+						$return_url[] = $replace;
+					}
+				}
+		}
+
+		return $return_url;
 	}
 
 	/*
