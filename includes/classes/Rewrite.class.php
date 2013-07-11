@@ -177,7 +177,6 @@ class Rewrite
 	*/
 	public function __construct()
 	{
-		global $settings;
 		$this->requesturi = PERMALINK_CURRENT_PATH;
 	}
 
@@ -369,7 +368,8 @@ class Rewrite
 
 			// If Yes, then Exploded the corresponding php_url and render the page
 			if ($aliasdata['alias_php_url'] != "") {
-				$url_info = $this->explodeURL($aliasdata['alias_php_url'], "&amp;");
+				$alias_url = $this->getAliasURL($aliasdata['alias_url'], $aliasdata['alias_php_url'], $aliasdata['alias_type']);
+				$url_info = $this->explodeURL($alias_url, "&amp;");
 
 				// File Path (Example: news.php)
 				$this->pathtofile = $url_info[0];
@@ -390,6 +390,24 @@ class Rewrite
 			$this->setWarning(1,$this->requesturi);	// Alias not found
 			return false;
 		}
+	}
+
+	private function getAliasURL($url, $php_url, $type)
+	{
+		$return_url = "";
+
+		if (is_array($this->alias_pattern[$type])) {
+			$match_found = false;
+				foreach ($this->alias_pattern[$type] as $search=>$replace) {
+					$search = str_replace("%alias%", $url, $search);
+					$replace = str_replace("%alias_target%", $php_url, $replace);
+					if ($search == $this->requesturi) {
+						$return_url = $replace;
+					}
+				}
+		}
+
+		return $return_url;
 	}
 
 	/*
@@ -426,7 +444,7 @@ class Rewrite
 
 								// Replace the %alias_target% in the Replacement pattern
 								$replace = str_replace("%alias_target%", $aliasdata['alias_php_url'], $replace);
-								$replace_with = $replace;
+								//$replace_with = $replace;
 
 								// Replacing Tags with their suitable matches
 								$replace = $this->replaceOtherTags($type,$search_pattern,$replace,$matches,-1);
@@ -546,51 +564,53 @@ class Rewrite
 			foreach ($this->pattern_search as $type=>$values) {
 				if (isset($this->dbid[$type])) {
 					foreach ($values as $key=>$search) {
-						if (isset($this->rewrite_code[$type]) && isset($this->rewrite_replace[$type])) {
-							$search = str_replace($this->rewrite_code[$type], $this->rewrite_replace[$type], $search);
-							$search = $this->cleanRegex($search);
-							$search = "#^".$search."#";
+						if (!$uri_match_found) {
+							if (isset($this->rewrite_code[$type]) && isset($this->rewrite_replace[$type])) {
+								$search = str_replace($this->rewrite_code[$type], $this->rewrite_replace[$type], $search);
+								$search = $this->cleanRegex($search);
+								$search = "#^".$search."#";
 
-							// If Current URI Matches with current Replace Pattern
-							if (preg_match($search, $current_uri, $matches)) {
+								// If Current URI Matches with current Replace Pattern
+								if (preg_match($search, $current_uri, $matches)) {
+									$uri_match_found = true;
 
-								//foreach ($this->dbid[$type] as $tag=>$attr) {
-									$tag = $this->getUniqueIDtag($type);
-									$attr = $this->getUniqueIDfield($type);
+									//foreach ($this->dbid[$type] as $tag=>$attr) {
+										$tag = $this->getUniqueIDtag($type);
+										$attr = $this->getUniqueIDfield($type);
 
-									$clean_tag = str_replace("%", "", $tag);	// Remove % for Searching the Tag
-									// +1 because Array key starts from 0 and matches[0] gives the complete match
-									$pos = $this->getTagPosition($this->pattern_search[$type][$key], $clean_tag);
-									if ($pos != 0)	{
-										$unique_id_value = $matches[$pos];	// This is to remove duplicate matches
+										$clean_tag = str_replace("%", "", $tag);	// Remove % for Searching the Tag
+										// +1 because Array key starts from 0 and matches[0] gives the complete match
+										$pos = $this->getTagPosition($this->pattern_search[$type][$key], $clean_tag);
+										if ($pos != 0)	{
+											$unique_id_value = $matches[$pos];	// This is to remove duplicate matches
+											$target_url = $this->pattern_search[$type][$key];
 
-										$target_url = $this->pattern_search[$type][$key];
+											// If the Pattern Info does not exist in Data Cache, then first of all, fetch it from DB
+											if (!isset($this->data_cache[$type][$unique_id_value])) {
+												$this->fetchDataID($type, $target_url, $unique_id_value);
+											}
 
-										// If the Pattern Info does not exist in Data Cache, then first of all, fetch it from DB
-										if (!isset($this->data_cache[$type][$unique_id_value])) {
-											$this->fetchDataID($type, $target_url, $unique_id_value);
-										}
-
-										// Replacing each Tag with its Database Value if any
-										// Example: %thread_title% should be replaced with thread_subject
-										if (isset($this->dbinfo[$type])) {
-											foreach ($this->dbinfo[$type] as $other_tags=>$other_attr) {
-												if (strstr($target_url, $other_tags)) {
-													$target_url = str_replace($other_tags, $this->data_cache[$type][$unique_id_value][$other_attr], $target_url);
+											// Replacing each Tag with its Database Value if any
+											// Example: %thread_title% should be replaced with thread_subject
+											if (isset($this->dbinfo[$type])) {
+												foreach ($this->dbinfo[$type] as $other_tags=>$other_attr) {
+													if (strstr($target_url, $other_tags)) {
+														$target_url = str_replace($other_tags, $this->data_cache[$type][$unique_id_value][$other_attr], $target_url);
+													}
 												}
 											}
-										}
 
-										// Replacing each of the Tag with its suitable match found on the Page
-										$target_url = $this->replaceOtherTags($type,$this->pattern_search[$type][$key],$target_url,$matches,-1);
-										$target_url = $this->cleanURL($target_url);
+											// Replacing each of the Tag with its suitable match found on the Page
+											$target_url = $this->replaceOtherTags($type,$this->pattern_search[$type][$key],$target_url,$matches,-1);
+											$target_url = $this->cleanURL($target_url);
 
-											// Now check if the CURRENT URI matches with actual URL, which it should be
-										if (strcmp($target_url, $current_uri) != 0) {
-											$this->mpRedirect($target_url);
+												// Now check if the CURRENT URI matches with actual URL, which it should be
+											if (strcmp($target_url, $current_uri) != 0) {
+												$this->mpRedirect($target_url);
+											}
 										}
-									}
-								//}
+									//}
+								}
 							}
 						}
 					}
